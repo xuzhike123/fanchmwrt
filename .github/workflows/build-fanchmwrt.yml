@@ -1,0 +1,54 @@
+name: Build FanchmWrt for OneCloud (玩客云)
+
+on:
+  workflow_dispatch: # 支持手动触发编译
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Initialization Environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install -y ack antlr3 gawk gettext git libssl-dev libglib2.0-dev libxml2-utils p7zip p7zip-full patch perl python3 python3-pip python3-ply python3-docutils python3-pyelftools rsync subversion unzip zlib1g-dev lib32gcc-s1 libc6-dev-i386 subversion libncurses5-dev libncursesw5-dev libgnutls28-dev flex uglifyjs git-core gcc-multilib psmisc build-essential mkisofs
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo timedatectl set-timezone "Asia/Shanghai"
+
+    - name: Update & Install Feeds
+      run: |
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Load Custom Configuration
+      run: |
+        [ -e .config ] && mv .config .config.bak
+        # 如果你有自定义的 .config 文件，可以存放在仓库根目录并在此加载
+        # 如果没有，可以在此处使用 echo 或 sed 注入 Target 配置，例如：
+        echo "CONFIG_TARGET_amlogic=y" >> .config
+        echo "CONFIG_TARGET_amlogic_meson8b=y" >> .config
+        echo "CONFIG_TARGET_amlogic_meson8b_DEVICE_onecloud=y" >> .config
+        make defconfig
+
+    - name: Download Package Sources
+      run: |
+        make download -j8
+        find dl -size -1024c -exec rm -f {} \;
+
+    - name: Compile Firmware
+      run: |
+        echo -e "$(nproc) thread compile"
+        make -j$(nproc) || make -j1 || make -j1 V=s
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: FanchmWrt_OneCloud_Firmware
+        path: bin/targets/
