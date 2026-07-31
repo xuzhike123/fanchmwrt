@@ -26,23 +26,33 @@ jobs:
       run: |
         ./scripts/feeds update -a
         ./scripts/feeds install -a
-    - name: Patch OneCloud Support into FanchmWrt
+
+    - name: One-Click Patch OneCloud (一键移植玩客云 DTS 及设备定义)
       run: |
-        # 1. 自动从社区支持玩客云的 OpenWrt 仓库拉取 meson8b 设备树和板级定义
-        svn checkout https://github.com/coolsnowwolf/lede/trunk/target/linux/amlogic/files/arch/arm/boot/dts/amlogic target/linux/amlogic/files/arch/arm/boot/dts/amlogic || true
-        
-        # 2. 如果缺少 meson8b 镜像配置文件，补全文件
-        curl -sL https://raw.githubusercontent.com/xydche/onecloud-openwrt/main/diy-part1.sh | bash || true    
+        # 1. 确保目标目录存在
+        mkdir -p target/linux/amlogic/files/arch/arm/boot/dts/amlogic
+        mkdir -p target/linux/amlogic/image
+
+        # 2. 从成熟社区仓库下载玩客云 DTS 设备树文件
+        curl -sL "https://raw.githubusercontent.com/xydche/onecloud-openwrt/main/target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts" \
+             -o target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts || true
+
+        # 3. 如果编译需要 meson8b.dtsi 基础文件，补全基础 DTS
+        curl -sL "https://raw.githubusercontent.com/openwrt/openwrt/master/target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b.dtsi" \
+             -o target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b.dtsi || true
+
+        # 4. 注入/覆盖 meson8b.mk (Target Makefile 设备定义)
+        curl -sL "https://raw.githubusercontent.com/xydche/onecloud-openwrt/main/target/linux/amlogic/image/meson8b.mk" \
+             -o target/linux/amlogic/image/meson8b.mk || true
+
+        # 5. 确保 meson8b.mk 在主 Makefile 中被引用 (防止未包含)
+        if [ -f target/linux/amlogic/image/Makefile ]; then
+          grep -q "meson8b.mk" target/linux/amlogic/image/Makefile || echo 'include meson8b.mk' >> target/linux/amlogic/image/Makefile
+        fi
 
     - name: Load & Expand Configuration
       run: |
-        # 自动读取仓库根目录下的 .config 并补全所有依赖选项
         make defconfig
-
-    - name: Download Package Sources
-      run: |
-        make download -j8
-        find dl -size -1024c -exec rm -f {} \;
 
     - name: Compile Firmware
       run: |
