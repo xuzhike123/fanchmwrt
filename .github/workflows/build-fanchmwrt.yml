@@ -26,6 +26,13 @@ jobs:
       run: |
         ./scripts/feeds update -a
         ./scripts/feeds install -a
+    - name: Patch OneCloud Support into FanchmWrt
+      run: |
+        # 1. 自动从社区支持玩客云的 OpenWrt 仓库拉取 meson8b 设备树和板级定义
+        svn checkout https://github.com/coolsnowwolf/lede/trunk/target/linux/amlogic/files/arch/arm/boot/dts/amlogic target/linux/amlogic/files/arch/arm/boot/dts/amlogic || true
+        
+        # 2. 如果缺少 meson8b 镜像配置文件，补全文件
+        curl -sL https://raw.githubusercontent.com/xydche/onecloud-openwrt/main/diy-part1.sh | bash || true    
 
     - name: Load & Expand Configuration
       run: |
