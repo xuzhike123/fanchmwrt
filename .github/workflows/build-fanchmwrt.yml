@@ -1,7 +1,7 @@
-name: Build FanchmWrt for OneCloud (玩客云)
+name: Build FanchmWrt for OneCloud
 
 on:
-  workflow_dispatch: # 支持在 GitHub Actions 页面手动点击按钮触发编译
+  workflow_dispatch:
 
 jobs:
   build:
@@ -11,7 +11,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Initialization Environment
+      - name: Free Disk Space & Init Environment
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
@@ -27,50 +27,52 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: One-Click Patch OneCloud (一键移植玩客云 DTS 及设备定义)
+      - name: Patch OneCloud Target & DTS
         run: |
-          # 1. 确保目标目录存在
           mkdir -p target/linux/amlogic/files/arch/arm/boot/dts/amlogic
           mkdir -p target/linux/amlogic/image
 
-          # 2. 从成熟社区仓库下载玩客云 DTS 设备树文件
+          # 下载玩客云 DTS
           curl -sL "https://raw.githubusercontent.com/xydche/onecloud-openwrt/main/target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts" \
             -o target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts || true
 
-          # 3. 如果编译需要 meson8b.dtsi 基础文件，补全基础 DTS
+          # 下载基础 dtsi
           curl -sL "https://raw.githubusercontent.com/openwrt/openwrt/master/target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b.dtsi" \
             -o target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b.dtsi || true
 
-          # 4. 注入/覆盖 meson8b.mk (Target Makefile 设备定义)
+          # 下载设备定义文件
           curl -sL "https://raw.githubusercontent.com/xydche/onecloud-openwrt/main/target/linux/amlogic/image/meson8b.mk" \
             -o target/linux/amlogic/image/meson8b.mk || true
 
-          # 5. 确保 meson8b.mk 在主 Makefile 中被引用 (防止未包含)
           if [ -f target/linux/amlogic/image/Makefile ]; then
             grep -q "meson8b.mk" target/linux/amlogic/image/Makefile || echo 'include meson8b.mk' >> target/linux/amlogic/image/Makefile
           fi
 
-      - name: Configure Target Architecture
+      - name: Force Switch Target to Amlogic OneCloud
         run: |
-          # 强制指定 Target 架构为 Amlogic
+          # 1. 彻底清空或重置已有的 .config
+          rm -f .config
+          
+          # 2. 写入玩客云专用 CPU 架构与目标设置
           echo "CONFIG_TARGET_amlogic=y" > .config
           echo "CONFIG_TARGET_amlogic_meson8b=y" >> .config
           echo "CONFIG_TARGET_amlogic_meson8b_DEVICE_thunder-onecloud=y" >> .config
+          
+          # 3. 重新生成配置
           make defconfig
 
       - name: Compile Firmware
         run: |
-          echo -e "$(nproc) thread compile"
-          make -j$(nproc) || make -j1 || make -j1 V=s
+          make -j$(nproc) || make -j1 V=s
 
-      - name: Organize Firmware Files
+      - name: Organize Firmware Directory
         id: organize
         run: |
           cd bin/targets/*/*
           rm -rf packages
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
 
-      - name: Upload Firmware to Artifacts
+      - name: Upload Firmware Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FanchmWrt_OneCloud_Firmware
