@@ -3,7 +3,6 @@ name: Build FanchmWrt for OneCloud
 on:
   workflow_dispatch:
 
-# 针对 ARM32 架构，强制全局使用 Node 20 运行 Actions
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
 
@@ -52,18 +51,17 @@ jobs:
 
       - name: Force Switch Target to Amlogic OneCloud
         run: |
-          # 彻底清理旧配置与缓存
+          # 彻底清理旧配置与缓存，防止误识别为 mediatek
           rm -rf .config .config.old
           
           # 写入玩客云 (Amlogic meson8b) 专属目标配置
-          cat <<EOF > .config
-CONFIG_TARGET_amlogic=y
-CONFIG_TARGET_amlogic_meson8b=y
-CONFIG_TARGET_amlogic_meson8b_DEVICE_thunder-onecloud=y
-CONFIG_TARGET_ROOTFS_EXT4FS=y
-CONFIG_TARGET_ROOTFS_SQUASHFS=y
-CONFIG_TARGET_IMAGES_GZIP=y
-EOF
+          echo "CONFIG_TARGET_amlogic=y" > .config
+          echo "CONFIG_TARGET_amlogic_meson8b=y" >> .config
+          echo "CONFIG_TARGET_amlogic_meson8b_DEVICE_thunder-onecloud=y" >> .config
+          echo "CONFIG_TARGET_ROOTFS_EXT4FS=y" >> .config
+          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+          echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
+
           make defconfig
 
       - name: Compile Firmware
