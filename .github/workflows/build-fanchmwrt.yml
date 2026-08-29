@@ -3,6 +3,10 @@ name: Build FanchmWrt for OneCloud
 on:
   workflow_dispatch:
 
+# 针对 ARM32 架构，强制全局使用 Node 20 运行 Actions
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -17,7 +21,7 @@ jobs:
         run: |
           sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo -E apt-get -qq update
-          sudo -E apt-get -qq install -y ack antlr3 gawk gettext git libssl-dev libglib2.0-dev libxml2-utils p7zip p7zip-full patch perl python3 python3-pip python3-ply python3-docutils python3-pyelftools rsync subversion unzip zlib1g-dev lib32gcc-s1 libc6-dev-i386 subversion libncurses5-dev libncursesw5-dev libgnutls28-dev flex uglifyjs git-core gcc-multilib psmisc build-essential mkisofs
+          sudo -E apt-get -qq install -y ack antlr3 gawk gettext git libssl-dev libglib2.0-dev libxml2-utils p7zip p7zip-full patch perl python3 python3-pip python3-ply python3-docutils python3-pyelftools rsync subversion unzip zlib1g-dev lib32gcc-s1 libc6-dev-i386 subversion libncurses5-dev libncursesw5-dev libgnutls28-dev flex uglifyjs git-core gcc-multilib psmisc build-essential mkisofs u-boot-tools dosfstools mtools uuid-runtime
           sudo -E apt-get -qq autoremove --purge
           sudo -E apt-get -qq clean
           sudo timedatectl set-timezone "Asia/Shanghai"
@@ -32,15 +36,13 @@ jobs:
           mkdir -p target/linux/amlogic/files/arch/arm/boot/dts/amlogic
           mkdir -p target/linux/amlogic/image
 
-          # 下载玩客云 DTS
+          # 下载玩客云 DTS 及设备配置
           curl -sL "https://raw.githubusercontent.com/xydche/onecloud-openwrt/main/target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts" \
             -o target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b-onecloud.dts || true
 
-          # 下载基础 dtsi
           curl -sL "https://raw.githubusercontent.com/openwrt/openwrt/master/target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b.dtsi" \
             -o target/linux/amlogic/files/arch/arm/boot/dts/amlogic/meson8b.dtsi || true
 
-          # 下载设备定义文件
           curl -sL "https://raw.githubusercontent.com/xydche/onecloud-openwrt/main/target/linux/amlogic/image/meson8b.mk" \
             -o target/linux/amlogic/image/meson8b.mk || true
 
@@ -50,15 +52,12 @@ jobs:
 
       - name: Force Switch Target to Amlogic OneCloud
         run: |
-          # 1. 彻底清空或重置已有的 .config
           rm -f .config
-          
-          # 2. 写入玩客云专用 CPU 架构与目标设置
           echo "CONFIG_TARGET_amlogic=y" > .config
           echo "CONFIG_TARGET_amlogic_meson8b=y" >> .config
           echo "CONFIG_TARGET_amlogic_meson8b_DEVICE_thunder-onecloud=y" >> .config
-          
-          # 3. 重新生成配置
+          echo "CONFIG_TARGET_ROOTFS_EXT4FS=y" >> .config
+          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
           make defconfig
 
       - name: Compile Firmware
@@ -76,4 +75,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: FanchmWrt_OneCloud_Firmware
-          path: ${{ env.FIRMWARE }}/*
+          path: |
+            ${{ env.FIRMWARE }}/*.img*
+            ${{ env.FIRMWARE }}/*.tar.gz
