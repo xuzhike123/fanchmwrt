@@ -3,7 +3,6 @@ name: Build FanchmWrt for OneCloud
 on:
   workflow_dispatch:
 
-# 针对 ARM32 架构，强制全局使用 Node 20 运行 Actions
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
 
@@ -58,6 +57,7 @@ jobs:
           echo "CONFIG_TARGET_amlogic_meson8b_DEVICE_thunder-onecloud=y" >> .config
           echo "CONFIG_TARGET_ROOTFS_EXT4FS=y" >> .config
           echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+          echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
           make defconfig
 
       - name: Compile Firmware
@@ -70,11 +70,12 @@ jobs:
           cd bin/targets/*/*
           rm -rf packages
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+          echo "=== 编译产物列表 ==="
+          ls -lh
 
       - name: Upload Firmware Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FanchmWrt_OneCloud_Firmware
-          path: |
-            ${{ env.FIRMWARE }}/*.img*
-            ${{ env.FIRMWARE }}/*.tar.gz
+          path: ${{ env.FIRMWARE }}/*
+          if-no-files-found: error
